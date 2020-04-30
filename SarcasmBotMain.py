@@ -57,6 +57,7 @@ class SarcasmUser(telepot.aio.helper.ChatHandler):
     
     async def on_chat_message(self, msg):
         content_type, chat_type, chat_id = telepot.glance(msg)
+        
         if 'text' in msg:
             if msg['text'] == '/help':
                 await self.sender.sendMessage("Send a message. If it starts with a vocal (a,e,i,o,u) it will show an emoji, else it will show a clown emoji")
