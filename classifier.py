@@ -95,10 +95,19 @@ def modelInformation(predictor, prediction, y_test, plotSize = (4,4)):
 
 
 if __name__ == '__main__':
-	
+
 	path = "data/train-balanced-sarcasm.csv"
 	df = readDf(path)
+
 	dfinformation(df)
 	x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
+
 	predictor, prediction = modelFitting(x_train, x_test, y_train, y_test)
 	modelInformation(predictor, prediction, y_test)
+
+	print("\n\nTesting examples:\n")
+	while True:
+		statement = input("What would you like to say? (type '1' to exit)\n")
+		if statement == "1":
+			break
+		print("Is this sarcastic?",predictor.predict([statement])[0] == 1)
