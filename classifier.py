@@ -1,7 +1,11 @@
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
+
 import time
 
 import pandas as pd
 import numpy as np
+from pickle import dump, load # to save model so we dont waste 2-3 mins every time we restart
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -68,15 +72,7 @@ def modelFitting(x_train, x_test, y_train, y_test):
 	end = time.time()
 	print("time:",int((end - start)/60),"m",int(end - start)%60,"s")
 
-
-	# test
-	print("testing...")
-	start = time.time()
-	prediction = tfidf_logit_pipeline.predict(x_test)
-	end = time.time()
-	print("time:",int((end - start)/60),"m",int(end - start)%60,"s")
-
-	return (tfidf_logit_pipeline, prediction)
+	return tfidf_logit_pipeline
 
 def modelInformation(predictor, prediction, y_test, plotSize = (4,4)):
 
@@ -93,17 +89,29 @@ def modelInformation(predictor, prediction, y_test, plotSize = (4,4)):
 	plt.show()
 
 
-
 if __name__ == '__main__':
 
-	path = "data/train-balanced-sarcasm.csv"
-	df = readDf(path)
+	try:
+		with open('data/predictor.pkl', 'rb') as f:
+			predictor = load(f)
 
-	dfinformation(df)
-	x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
+	except IOError:
+		
 
-	predictor, prediction = modelFitting(x_train, x_test, y_train, y_test)
-	modelInformation(predictor, prediction, y_test)
+		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+		path = askopenfilename()
+
+		df = readDf(path)
+
+		dfinformation(df)
+		x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
+
+		predictor = modelFitting(x_train, x_test, y_train, y_test)
+		dump(predictor, open('data/predictor.pkl', 'wb'))
+
+		prediction = predictor.predict(x_test)
+		modelInformation(predictor, prediction, y_test)
+
 
 	print("\n\nTesting examples:\n")
 	while True:
@@ -111,3 +119,6 @@ if __name__ == '__main__':
 		if statement == "1":
 			break
 		print("Is this sarcastic?",predictor.predict([statement])[0] == 1)
+
+
+print("loaded")

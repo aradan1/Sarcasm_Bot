@@ -1,5 +1,8 @@
 
 # coding: utf-8
+import classifier
+from pickle import dump, load # to save model so we dont waste 2-3 mins every time we restart
+
 
 import asyncio as aio
 import telepot
@@ -66,15 +69,17 @@ class SarcasmUser(telepot.aio.helper.ChatHandler):
             message = msg['text']
             print(message)
             
-            vocals = ["a","e","i","o","u", "A","E","I","O","U"]
-            
-            if message[0] in vocals:
-                # starts with a vocal
+            prediction = predictor.predict([message])[0]
+
+
+            if prediction:
+                # is sarcastic
                 await self.sender.sendMessage("🤡")
             else:
-                # doesnt start with a vocal
+                # isn't sarcastic
                 await self.sender.sendMessage("👌")
-            
+
+                
         else:
             await self.sender.sendMessage("Message must be a text")
             
@@ -85,10 +90,26 @@ class SarcasmUser(telepot.aio.helper.ChatHandler):
 
 if __name__ == '__main__':
 
-    #test
-	print("iniciado")
-	# Se crea un bot i inicia
-	with SarcasmBot() as bot:
 
-		# Start bot
-		bot.start(open('TOKEN').read().strip())
+    try:
+        with open('data/predictor.pkl', 'rb') as f:
+            predictor = load(f)
+
+    except IOError:
+        
+        Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+        path = askopenfilename()
+
+        df = classifier.readDf(path)
+        x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
+
+        predictor = classifier.modelFitting(x_train, x_test, y_train, y_test)
+        dump(predictor, open('data/predictor.pkl', 'wb'))
+    
+
+    print("Bot started") 
+    # Se crea un bot i inicia
+    with SarcasmBot() as bot:
+
+        # Start bot
+        bot.start(open('TOKEN').read().strip())
