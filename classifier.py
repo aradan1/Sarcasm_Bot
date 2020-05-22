@@ -1,11 +1,12 @@
 from tkinter import Tk
-from tkinter.filedialog import askopenfilename
+from tkinter.filedialog import askopenfilename, askdirectory
 
 import time
 
 import pandas as pd
 import numpy as np
 from pickle import dump, load # to save model so we dont waste 2-3 mins every time we restart
+from os.path import join
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -89,11 +90,22 @@ def modelInformation(predictor, prediction, y_test, plotSize = (4,4)):
 	plt.show()
 
 
+def saveModel(path, filename, predictor):
+	dump(predictor, open(join(path, filename + ".pkl"), 'wb'))
+
+def loadModel(path):
+	with open(path, 'rb') as f:
+		predictor = load(f)
+		return predictor
+
+
+
 if __name__ == '__main__':
 
 	try:
-		with open('data/predictor.pkl', 'rb') as f:
-			predictor = load(f)
+		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+		path = askopenfilename()
+		predictor = loadModel(path)
 
 	except IOError:
 		
@@ -107,7 +119,12 @@ if __name__ == '__main__':
 		x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
 
 		predictor = modelFitting(x_train, x_test, y_train, y_test)
-		dump(predictor, open('data/predictor.pkl', 'wb'))
+
+		#TO SAVE THE MODEL
+		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+		path = askdirectory()
+		name = input("Name your file to be saved:\n")
+		saveModel(path,name,predictor)
 
 		prediction = predictor.predict(x_test)
 		modelInformation(predictor, prediction, y_test)
@@ -121,4 +138,3 @@ if __name__ == '__main__':
 		print("Is this sarcastic?",predictor.predict([statement])[0] == 1)
 
 
-print("loaded")

@@ -1,7 +1,6 @@
 
 # coding: utf-8
 import classifier
-from pickle import dump, load # to save model so we dont waste 2-3 mins every time we restart
 
 
 import asyncio as aio
@@ -92,8 +91,9 @@ if __name__ == '__main__':
 
 
     try:
-        with open('data/predictor.pkl', 'rb') as f:
-            predictor = load(f)
+        Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+        path = askopenfilename()
+        predictor = classifier.loadModel(path)
 
     except IOError:
         
@@ -104,8 +104,11 @@ if __name__ == '__main__':
         x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
 
         predictor = classifier.modelFitting(x_train, x_test, y_train, y_test)
-        dump(predictor, open('data/predictor.pkl', 'wb'))
-    
+        
+        Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+        path = askdirectory()
+        name = input("Name your file to be saved:\n")
+        saveModel(path,name,predictor)    
 
     print("Bot started") 
     # Se crea un bot i inicia
