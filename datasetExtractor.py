@@ -1,162 +1,184 @@
-import praw
 from langdetect import detect, DetectorFactory, detect_langs
 
 import pandas as pd
 import numpy as np
 
+import requests
+from datetime import datetime
+import traceback
+import time
+import signal
+import sys
+
 import classifier
 
 DetectorFactory.seed = 0
 
+url = "https://api.pushshift.io/reddit/comment/search?limit=1000&sort=desc&{}={}&before="
+default_backup_path = ""
+default_dataset_path = ""
 
-def getAllTaggedCommentsOfSubreddit(reddit, tag, subreddit, maxSeen=1000000, language="en"):
 
+'''
+	Save pandas.DataFrame as csv file
+
+	dataframe:= DataFrame to be saved
+	filename:= Path wanted for the csv file 
+'''
+def saveDFToCSV(dataframe, filename):
+	dataframe.to_csv(filename, index=False, encoding='utf-8')
+
+
+''' 
+	Searches all comments from reddit with specified pattern. 
+	(API documentation: https://pushshift.io/api-parameters/)
+
+	pattern:= Field with which will search comments (endpoint from the api. ex: subreddit, author).
+	target:= Value to search 'pattern' for.
+	tag:= String to look for in the comments("" will result in all comments matched).
+	tagged:= Return only comments that: 'True' = contain the tag, 'False' = don't contain the tag.
+	maxSeen:= Number of comments wanted to check (if 'None' check all posible comments, if negative none will be checked)
+	quantity:= Max number of matches expected to save (if negative this condition will be ignored) 
+'''
+def downloadFromUrl(pattern, target, tag, tagged, maxSeen=None, quantity=-1):
+	print(f"Saving {pattern}s from {target}")
+	
+	count = 0
 	dataset = {'comment':[], 
 			'author':[],
 			'subreddit':[]}
-	sarcastis_found = 0
-	try:
-		while maxSeen > 0:
 
-			submission = reddit.subreddit(subreddit).random()
-			submission.comments.replace_more(limit=0)
+	start_time = datetime.utcnow()
+	previous_epoch = int(start_time.timestamp())
 
-			for comment in submission.comments.list():
+	def signal_handler(sig, frame):
+		print("Saving current data before exiting")
+		classifier.saveModel(default_backup_path+target, (previous_epoch, dataset))
+		sys.exit(0)
 
+	signal.signal(signal.SIGINT, signal_handler)
+
+	while maxSeen==None or maxSeen > 0:
+		new_url = url.format(pattern,target)+str(previous_epoch)
+		json = requests.get(new_url, headers={'User-Agent': "Comment downloader"})
+		time.sleep(1) # pushshift has a rate limit, if we send requests too fast it will start returning error messages
+		try:
+			json_data = json.json()
+		except ValueError:
+			print("Response content is not valid JSON")
+			continue
+
+		if 'data' not in json_data:
+			break
+		objects = json_data['data']
+
+		if len(objects) == 0 or count == quantity:
+			break
+
+		for object in objects:
+
+			if count == quantity:
+				break
+
+			if maxSeen!=None:
+				#if maxSeen is a number
 				if maxSeen%1000==0:
 					print(maxSeen)
 				maxSeen -= 1
 
-				if tag in comment.body:
-					sarcastis_found += 1
-					# get all comments either too short or in the requested language
-					if len(comment.body.split()) == 1 or detect(comment.body) == language:
-						dataset['comment'].append(comment.body)
-						dataset['author'].append(comment.author.name)
-						dataset['subreddit'].append(comment.subreddit.name)
-				
-	#except Exception as e:
-	except:
-		print("dies with "+str(maxSeen)+" comments left and "+str(len(dataset['comments']))+" comments added.")
-		logging.error(traceback.format_exc())
+			previous_epoch = object['created_utc'] - 1
+			
+			try:
+				text = object['body']
+				textASCII = text.encode(encoding='ascii', errors='ignore').decode()
+				if (tag in textASCII) == tagged:
+					count += 1
+					if tagged:
+						textASCII = trimTaggedString(textASCII, tag)
+					dataset['comment'].append(textASCII)
+					dataset['author'].append(object['author'])
+					dataset['subreddit'].append(object['subreddit'])
 
-	finally:
-		print("found: "+str(sarcastis_found)+" comments")
+			except Exception as err:
+				print(f"Couldn't print comment: {object['url']}")
+				print(traceback.format_exc())
 
-		return dataset
+		#print("Saved {} comments through {}".format(count, datetime.fromtimestamp(previous_epoch).strftime("%Y-%m-%d")))
 
-# Checks all not tagged comments in a subreddit, defaults to the first 1 Million
-def getAllNoneTaggedCommentsOfSubreddit(reddit, tag, subreddit, maxSeen=1000000, language="en"):
+	print(f"Saved {count} comments from {target}")
+	classifier.saveModel(default_dataset_path+pattern+"\\"+target, dataset)
+	return dataset
 
-	dataset = {'comment':[], 
+'''
+	Merges all dictionaries inside a list into a single dictionary
+
+	dict_list:= List of dictionaries to merge
+'''
+def mergeDictionaries(dict_list):
+	result = {'comment':[], 
 			'author':[],
 			'subreddit':[]}
-	try:
-		while maxSeen > 0:
+	for d in dict_list:
+		result['comment'] = result['comment'] + d['comment']
+		result['author'] = result['author'] + d['author']
+		result['subreddit'] = result['subreddit'] + d['subreddit']
 
-			submission = reddit.subreddit(subreddit).random()
-			submission.comments.replace_more(limit=0)
+	return result
 
-			for comment in submission.comments.list():
+'''
+	Splits the string from where the tag is found and removes the later part
 
-				if maxSeen%100==0:
-					print(maxSeen)
-				maxSeen -= 1
-
-				if tag not in comment.body:
-					# get all comments either too short or in the requested language
-					if len(comment.body.split()) == 1 or detect(comment.body) == language:
-						dataset['comment'].append(comment.body)
-						dataset['author'].append(comment.author.name)
-						dataset['subreddit'].append(comment.subreddit.name)
-
-	except:
-		print("dies with "+str(maxSeen)+" comments left")
-	finally:
-		return dataset
-
-#max comments checked per user is 1000, set by the api
-def findNoneTaggedAuthorComments(author, tag, quantity):
-
-	dataset = {'comment':[], 
-			'subreddit':[]}
-
-	for comment in reddit.redditor(author).comments.new(limit=None):
-		if tag not in comment.body:
-			dataset['comment'].append(comment.body)
-			dataset['subreddit'].append(comment.subreddit.name)
-			quantity -= 1
-
-			if quantity == 0:
-				break
-
-	return dataset
-
-#max comments checked per user is 1000, set by the api
-def findTaggedAuthorComments(author, tag, quantity):
-
-	dataset = {'comment':[], 
-			'subreddit':[]}
-
-	for comment in reddit.redditor(author).comments.new(limit=None):
-		if tag in comment.body:
-			dataset['comment'].append(comment.body)
-			dataset['subreddit'].append(comment.subreddit.name)
-			quantity -= 1
-
-			if quantity == 0:
-				break
-
-	return dataset
-
-# save dataframe as the specified filename
-def saveToCSV(dataframe, filename):
-	dataframe.to_csv(filename, index=False, encoding='utf-8')
-
+	string:= String wanted to trim
+	tag:= Substring to look for in 'string'
+'''
+def trimTaggedString(string, tag):
+	return string.split(tag)[0].strip()
 
 if __name__ == '__main__':
 	
+	with open("subreddits.txt") as myfile:
+		subreddits = myfile.read().splitlines()
 
-	# This file must contain exactly 2 lines: client_id and client_secret
-	with open("REDDIT_TOKEN") as myfile:
-		client_id = next(myfile).strip()
-		client_secret = next(myfile).strip()
-
-	reddit = praw.Reddit(user_agent="Comment Extractor",
-                     client_id=client_id, client_secret=client_secret)
-	
-
+	default_backup_path = "backup\\"
+	default_dataset_path = "dataset\\"
 	sarcasmTag = " /s"
-	subreddit = "all"
 	language = "es"
-	maxSeen = 10000000 #10 Million
+	maxSeen = 1e6
 
-	df = pd.DataFrame( getAllTaggedCommentsOfSubreddit(reddit, sarcasmTag, subreddit, maxSeen=maxSeen,language=language) )
-	
+	subreddit_dicts = []
+	for subreddit in subreddits:
+		print(subreddit)
+		comments_dict = downloadFromUrl("subreddit", subreddit, sarcasmTag, True, maxSeen=maxSeen)
+		subreddit_dicts.append(comments_dict)
+
+
+	subreddit_dicts = mergeDictionaries(subreddit_dicts)
+	df = pd.DataFrame(subreddit_dicts) 
 	print(df.shape)
 	
 	if df.shape[0] != 0:
 
-		#TO SAVE THE DATAFRAME
-		saveToCSV(df, "only_tagged.csv")
 		df['sarcasm'] = 1
-		print("found sarcastic comments")
-		authorOcur = df['author'].value_counts()
-		for author, quantity in authorOcur.items():
+		#TO SAVE THE DATAFRAME
+		saveDFToCSV(df, "only_tagged.csv")
 
+		authorOcur = df['author'].value_counts()
+		author_dicts = []
+
+		for author, quantity in authorOcur.items():
+			print(author, quantity)
 			# Find not number of not tagged comments from user
-			nonTagged = findNoneTaggedAuthorComments(author, sarcasmTag, quantity)
+			nonTagged = downloadFromUrl("author", author, sarcasmTag, False, quantity=quantity)
 
 			# make the dict fit the DataFrame
-			lenght = len(nonTagged['comment'])
-			nonTagged['author']=[author] * lenght
-			nonTagged['sarcasm'] = [0] * lenght
-			# append to DataFrame
-			df = df.append(nonTagged, ignore_index=True)
+			nonTagged['sarcasm'] = [0] * len(nonTagged['comment'])
+			author_dicts.append(nonTagged)
+
+		df = df.append(author_dicts, ignore_index=True)
 
 		#TO SAVE THE DATAFRAME
 		name = input("Name your file to be saved:\n")
 		if not name.endswith(".csv"):
 			name = name+".csv"
-		saveToCSV(df, name)
+		saveDFToCSV(df, name)
 

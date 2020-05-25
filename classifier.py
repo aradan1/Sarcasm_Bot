@@ -21,18 +21,11 @@ import eli5
 
 
 
+'''
+	Prints some information about the DataFrame
 
-
-
-def readDf(path):
-	df = pd.read_csv(path)
-
-	# noticed df.info() returned some Null values under the label comments, can't have those
-	df.dropna(subset=['comment'], inplace=True)
-
-	return df
-
-
+	df:= DataFrame from which information will be obtained
+'''
 def dfinformation(df):
 
 	print("\nshape:")
@@ -52,8 +45,13 @@ def dfinformation(df):
 	# print(sub_df.sort_values(by='sum', ascending=False).head(10))
 
 
+'''
+	Creates a pipeline with a vectorizer and Log.Regression and makes a 'fit' with the train sets
 
-def modelFitting(x_train, x_test, y_train, y_test):
+	x_train:= train question
+	y_train:= train response
+'''
+def modelFitting(x_train, y_train):
 	# build unigrams and bigrams, put a limit on maximal number of features on the vocabulary created
 	# and minimal word frequency
 	tf_idf = TfidfVectorizer(ngram_range=(1, 2), max_features=50000, min_df=2)
@@ -75,7 +73,14 @@ def modelFitting(x_train, x_test, y_train, y_test):
 
 	return tfidf_logit_pipeline
 
-def modelInformation(predictor, prediction, y_test, plotSize = (4,4)):
+'''
+	Prints model information like accuracy scores and a confusion matrix
+
+	prediction:= Predicted response from the model
+	y_test:= Correct response
+	plotSize:= Size of the ploted confusion matrix
+'''
+def modelInformation(prediction, y_test, plotSize = (4,4)):
 
 	print("\nAccuracy of the model:")
 	print(accuracy_score(y_test, prediction))
@@ -89,14 +94,30 @@ def modelInformation(predictor, prediction, y_test, plotSize = (4,4)):
 	
 	plt.show()
 
+'''
+	Saves data in file
 
-def saveModel(path, filename, predictor):
-	dump(predictor, open(join(path, filename + ".pkl"), 'wb'))
+	path:= Path to the file in which we want data to be stored
+	data:= Data to be stored
+'''
+def saveModel(path, data):
+	if not path.endswith(".pkl"):
+		path = path+".pkl"
+	with open(path, 'wb') as f:
+		dump(data, f)
 
+'''
+	Loads data from file
+
+	path:= Path from which we want to recover data
+'''
 def loadModel(path):
+	if not path.endswith(".pkl"):
+		path = path+".pkl"
+
 	with open(path, 'rb') as f:
-		predictor = load(f)
-		return predictor
+		data = load(f)
+	return data
 
 
 
@@ -113,19 +134,25 @@ if __name__ == '__main__':
 		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
 		path = askopenfilename()
 
-		df = readDf(path)
+		df = pd.read_csv(path)	
+		# noticed df.info() returned some Null values under the label comments, can't have those
+		df.dropna(subset=['comment'], inplace=True)
 
 		dfinformation(df)
+		# Get the sets for test and train
 		x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
 
-		predictor = modelFitting(x_train, x_test, y_train, y_test)
+		predictor = modelFitting(x_train, y_train)
 
 		#TO SAVE THE MODEL
 		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
 		path = askdirectory()
 		name = input("Name your file to be saved:\n")
-		saveModel(path,name,predictor)
+		if not path.endswith("\\"):
+			path = path+"\\"
+		saveModel(path+name,predictor)
 
+		# Check accuracy scores
 		prediction = predictor.predict(x_test)
 		modelInformation(predictor, prediction, y_test)
 
