@@ -123,38 +123,36 @@ def loadModel(path):
 
 if __name__ == '__main__':
 
-	try:
+	default_model_path = "dataset\\model\\"
+
+		
+
+	Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+	path = askopenfilename()
+
+	df = pd.read_csv(path)	
+	# noticed df.info() returned some Null values under the label comments, can't have those
+	df.dropna(subset=['comment'], inplace=True)
+	dfinformation(df)
+	# Get the sets for test and train
+	x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
+
+	if input("Want to load the model? (y/n)\n") == "y":
+
 		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
 		path = askopenfilename()
 		predictor = loadModel(path)
 
-	except IOError:
-		
-
-		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-		path = askopenfilename()
-
-		df = pd.read_csv(path)	
-		# noticed df.info() returned some Null values under the label comments, can't have those
-		df.dropna(subset=['comment'], inplace=True)
-
-		dfinformation(df)
-		# Get the sets for test and train
-		x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
-
+	else:
 		predictor = modelFitting(x_train, y_train)
 
 		#TO SAVE THE MODEL
-		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-		path = askdirectory()
-		name = input("Name your file to be saved:\n")
-		if not path.endswith("\\"):
-			path = path+"\\"
-		saveModel(path+name,predictor)
+		name = "first_raw_model"
+		saveModel(default_model_path+name,predictor)
 
-		# Check accuracy scores
-		prediction = predictor.predict(x_test)
-		modelInformation(predictor, prediction, y_test)
+	# Check accuracy scores
+	prediction = predictor.predict(x_test)
+	modelInformation(prediction, y_test)
 
 
 	print("\n\nTesting examples:\n")
