@@ -1,25 +1,25 @@
-from langdetect import detect, DetectorFactory, detect_langs
-from spellchecker import SpellChecker
+from langdetect import detect, DetectorFactory
+#from spellchecker import SpellChecker
 
+#from nltk.tokenize import RegexpTokenizer
+import spacy
 
 import pandas as pd
-import numpy as np
 
 import requests
 from datetime import datetime
-import traceback
 import time
-import signal
-import sys
-import os
+import re
 
 import classifier
 
-DetectorFactory.seed = 0
+#DetectorFactory.seed = 0
+nlp = spacy.load('es_core_news_sm')
 
 url = "https://api.pushshift.io/reddit/comment/search?limit=1000&sort=desc&{}={}&before="
 default_backup_path = ""
 default_dataset_path = ""
+
 
 
 '''
@@ -53,13 +53,6 @@ def downloadFromUrl(pattern, target, tag, tagged, limit=None, language="es" ,qua
 
 	start_time = datetime.utcnow()
 	previous_epoch = int(start_time.timestamp())
-
-	def signal_handler(sig, frame):
-		print("Saving current data before exiting")
-		classifier.saveModel(default_backup_path+target, (previous_epoch, dataset))
-		sys.exit(0)
-
-	signal.signal(signal.SIGINT, signal_handler)
 
 	while limit==None or maxSeen < limit:
 		new_url = url.format(pattern,target)+str(previous_epoch)
@@ -136,14 +129,64 @@ def trimTaggedString(string, tag):
 	return string.split(tag)[0].strip()
 
 
+'''
+	Removes any consecutive repetition of "char" in "string"
+	(ex: 'a' and "aaaia" would return "aia") 
+'''
+def discardRepetition(string, char): 
+    pattern = char + '{2,}'
+    string = re.sub(pattern, char, string) 
+    return string
+
+
+'''
+	Removes the substring occurrences inside string and returns the number
+	of times that happened
+
+	string:= String to be searched into
+	sub:= substring to look for
+'''
+def removeAndCountSub(string, sub):
+	long1=len(string)
+	result= string.replace(sub,'')
+	long2=len(result)
+	if long1==long2:
+		return result, 0
+	return result, (long1-long2)/len(sub)
+
+'''
+	Lemmatizes string
+
+	string:= Text to process
+'''
+def lemmatize(string):
+	doc = nlp(string)
+	lemmas = [tok.lemma_.strip() if tok.lemma_ != "-PRON-" else tok.lower_ for tok in doc]
+	return " ".join(lemmas)
+
 
 
 if __name__ == '__main__':
 
+
 	default_backup_path = "backup\\"
 	default_dataset_path = "dataset\\"
+	default_data_path = "data\\"
 	sarcasmTag = " /s"
 	language = "es"
 	maxSeen = 1e6
 
-	df = pd.read_csv("\\data\\full_raw.csv")
+
+
+	with open('faces.txt', 'r', encoding="utf-8") as f:
+		matches = [i.replace('\n', '').replace('\r','') for i in f.readlines()]
+
+	
+	name = "emote_counted"
+	df = pd.read_pickle(default_data_path+default_backup_path+name+".pkl")
+
+	
+
+	print("\n    "+name+"  ------------------------------")
+	print(df.info())
+	print()

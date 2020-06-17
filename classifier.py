@@ -1,6 +1,3 @@
-from tkinter import Tk
-from tkinter.filedialog import askopenfilename, askdirectory
-
 import time
 
 import pandas as pd
@@ -9,10 +6,12 @@ from pickle import dump, load # to save model so we dont waste 2-3 mins every ti
 from os.path import join
 
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
+
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix
+from scipy.sparse import hstack
 
 # heatmap plots
 import seaborn as sn
@@ -34,11 +33,11 @@ def dfinformation(df):
 	print("\nInfo on df:")
 	print(df.info())
 
-	print("\nDistribution of sarcastic/non-sarcastic samples:")
+	print("\nDistribution of labeled samples:")
 	print(df['label'].value_counts())
 
 
-	print("\nHow sarcastic themes (subreddits) are:")
+	print("\nHow labeled themes (subreddits) are:")
 	# this seemed usefull since subreddits appeal to topics and in the future information like this could be usefull
 	sub_df = df.groupby('subreddit')['label'].agg([np.size, np.mean, np.sum])
 	print(sub_df[sub_df['size'] > 1000].sort_values(by='mean', ascending=False).head(10))
@@ -52,6 +51,13 @@ def dfinformation(df):
 	y_train:= train response
 '''
 def modelFitting(x_train, y_train):
+
+	# this will have the necessary tools to transform future data to fit into model
+	model_dict = dict()
+
+	# list containing the transformed data
+	data =[]
+
 	# build unigrams and bigrams, put a limit on maximal number of features on the vocabulary created
 	# and minimal word frequency
 	tf_idf = TfidfVectorizer(ngram_range=(1, 2), max_features=50000, min_df=2)
@@ -61,17 +67,53 @@ def modelFitting(x_train, y_train):
 	# max_iter set really high since my pc is really "outdated"
 	logit = LogisticRegression(C=1, n_jobs=4, solver='lbfgs', random_state=10, verbose=1, max_iter=7600)
 
-	# sklearn's pipeline
-	tfidf_logit_pipeline = Pipeline([('tf_idf', tf_idf), ('logit', logit)])
-
 	# train
 	print("\ntraining...")
 	start = time.time()
-	tfidf_logit_pipeline.fit(x_train, y_train)
+
+	# Data 1 = comments
+	data.append(tf_idf.fit_transform(x_train['comment']))
+	model_dict["tf_idf"] = tf_idf
+
+	# Data 2 = hasEmotes and numEmotes
+	numeric = [i for i in x_train.columns if i in ["numEmotes","hasEmotes"]]
+	data+=[x_train[i].values[np.newaxis].T for i in numeric]
+
+	# Data 3 = Emote labels
+	if "emotes" in x_train.columns:
+		mlb = MultiLabelBinarizer()
+		data.append(mlb.fit_transform(x_train['emotes']))
+		model_dict["mlb"] = mlb
+
+	X = hstack(data)
+
+	logit.fit(X, y_train)
+
 	end = time.time()
 	print("time:",int((end - start)/60),"m",int(end - start)%60,"s")
 
-	return tfidf_logit_pipeline
+	model_dict["logit"] = logit
+
+	return model_dict
+
+'''
+	method that transforms data to fit the model
+
+	data:= Df containing the data
+	predictor:= Dictionary with the keys "tf_idf", "logit" and "mlb"(if required) after the correct fitting
+'''
+def transformData(predictor, data):
+	result = []
+
+	result.append(predictor["tf_idf"].transform(data["comment"]))
+
+	numeric = [i for i in data.columns if i in ["numEmotes","hasEmotes"]]
+	result += [data[i].values[np.newaxis].T for i in numeric]
+
+	if "emotes" in data.columns:
+		result.append(predictor["mlb"].transform(data['emotes']))
+
+	return hstack(result)
 
 '''
 	Prints model information like accuracy scores and a confusion matrix
@@ -124,42 +166,33 @@ def loadModel(path):
 if __name__ == '__main__':
 
 	default_model_path = "dataset\\model\\"
+	default_data_path = "data\\"
 
+
+	paths = ["full_raw", "emote_checked", "emote_counted", "spellchecked", "tokenized_emote_counted", "lemmatized_tokenized_emote_counted"]
+	dfs = {}
+	for path in paths:
+		df = pd.read_pickle(default_data_path+path+".pkl")
+		#print(df.info())
+		dfs[path]=df.copy()
+
+	for name in dfs:
+		print("\nDF: "+name+" ---------------------------")
+		df=dfs[name]
+
+		numeric = [i for i in df.columns if i in ["label", "numEmotes","hasEmotes"]]
+		string = [i for i in df.columns if i in ["comment"]]
+
+		#dfinformation(df)
+		# Get the sets for test and train
+		x_train, x_test, y_train, y_test = train_test_split(df[df.columns[~df.columns.isin(['subreddit','author','label'])]], df['label'], random_state=10)
 		
-
-	Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-	path = askopenfilename()
-
-	df = pd.read_csv(path)	
-	# noticed df.info() returned some Null values under the label comments, can't have those
-	df.dropna(subset=['comment'], inplace=True)
-	dfinformation(df)
-	# Get the sets for test and train
-	x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
-
-	if input("Want to load the model? (y/n)\n") == "y":
-
-		Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-		path = askopenfilename()
-		predictor = loadModel(path)
-
-	else:
 		predictor = modelFitting(x_train, y_train)
 
 		#TO SAVE THE MODEL
-		name = "first_raw_model"
-		saveModel(default_model_path+name,predictor)
+		saveModel(default_model_path+name+"_model",predictor)
 
-	# Check accuracy scores
-	prediction = predictor.predict(x_test)
-	modelInformation(prediction, y_test)
-
-
-	print("\n\nTesting examples:\n")
-	while True:
-		statement = input("What would you like to say? (type '1' to exit)\n")
-		if statement == "1":
-			break
-		print("Is this sarcastic?",predictor.predict([statement])[0] == 1)
-
-
+		# Check accuracy scores
+		trans_x_test = transformData(predictor, x_test)
+		prediction = predictor["logit"].predict(trans_x_test)
+		modelInformation(prediction, y_test)
