@@ -81,7 +81,9 @@ def modelFitting(x_train, y_train):
 
 	# Data 3 = Emote labels
 	if "emotes" in x_train.columns:
-		mlb = MultiLabelBinarizer()
+		with open('faces.txt', 'r', encoding="utf-8") as f:
+			matches = [i.replace('\n', '').replace('\r','') for i in f.readlines()]
+		mlb = MultiLabelBinarizer(classes=matches)
 		data.append(mlb.fit_transform(x_train['emotes']))
 		model_dict["mlb"] = mlb
 
@@ -180,9 +182,6 @@ if __name__ == '__main__':
 		print("\nDF: "+name+" ---------------------------")
 		df=dfs[name]
 
-		numeric = [i for i in df.columns if i in ["label", "numEmotes","hasEmotes"]]
-		string = [i for i in df.columns if i in ["comment"]]
-
 		#dfinformation(df)
 		# Get the sets for test and train
 		x_train, x_test, y_train, y_test = train_test_split(df[df.columns[~df.columns.isin(['subreddit','author','label'])]], df['label'], random_state=10)
@@ -190,7 +189,7 @@ if __name__ == '__main__':
 		predictor = modelFitting(x_train, y_train)
 
 		#TO SAVE THE MODEL
-		saveModel(default_model_path+name+"_model",predictor)
+		saveModel(default_model_path+name+"_model_2",predictor)
 
 		# Check accuracy scores
 		trans_x_test = transformData(predictor, x_test)
