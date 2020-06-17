@@ -1,7 +1,5 @@
 from langdetect import detect, DetectorFactory
-#from spellchecker import SpellChecker
 
-#from nltk.tokenize import RegexpTokenizer
 import spacy
 
 import pandas as pd
@@ -161,9 +159,55 @@ def removeAndCountSub(string, sub):
 '''
 def lemmatize(string):
 	doc = nlp(string)
-	lemmas = [tok.lemma_.strip() if tok.lemma_ != "-PRON-" else tok.lower_ for tok in doc]
+	tokens = [word for word in doc if not word.is_punct]
+	lemmas = [tok.lemma_.strip() if tok.lemma_ != "-PRON-" else tok.lower_ for tok in tokens]
 	return " ".join(lemmas)
 
+'''
+	Converts string to dictionary that fits the Lemmatized_Tokenized_Emote_Counted dataframe
+
+	string:= comment to convert
+'''
+def convertToLTEC(string):
+	df = convertToECounted(string)
+	for index, row in df.iterrows():
+		df.at[index,"comment"] = lemmatize(row["comment"])
+	return df
+
+
+'''
+	Converts string to dictionary that fits the Emote_Counted dataframe
+
+	string:= comment to convert
+'''
+def convertToECounted(string):
+	if string.endswith("."):
+		string=string[:-1]
+	with open('faces.txt', 'r', encoding="utf-8") as f:
+		matches = [i.replace('\n', '').replace('\r','') for i in f.readlines()]
+	count = 0
+	emotes = []
+	for face in matches:
+		if " "+face+" " in " "+string+" ":
+			string, num = removeAndCountSub(string, face)
+			count+=num
+			emotes.append(face)
+
+	return pd.DataFrame({"comment":[string.lower()], "emotes":[emotes], "numEmotes":[count]})
+
+'''
+	Converts string to dictionary that fits the Emote_Checked dataframe
+
+	string:= comment to convert
+'''
+def convertToEChecked(string):
+	if string.endswith("."):
+		string=string[:-1]
+	with open('faces.txt', 'r', encoding="utf-8") as f:
+		matches = [i.replace('\n', '').replace('\r','') for i in f.readlines()]
+	isIn = [" "+face+" " in " "+string+" " for face in matches]
+
+	return pd.DataFrame({"comment": [string], "hasEmotes": [any(isIn)], "numEmotes": [isIn.count(True)]})
 
 
 if __name__ == '__main__':
@@ -175,18 +219,3 @@ if __name__ == '__main__':
 	sarcasmTag = " /s"
 	language = "es"
 	maxSeen = 1e6
-
-
-
-	with open('faces.txt', 'r', encoding="utf-8") as f:
-		matches = [i.replace('\n', '').replace('\r','') for i in f.readlines()]
-
-	
-	name = "emote_counted"
-	df = pd.read_pickle(default_data_path+default_backup_path+name+".pkl")
-
-	
-
-	print("\n    "+name+"  ------------------------------")
-	print(df.info())
-	print()

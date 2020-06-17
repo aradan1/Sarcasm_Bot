@@ -1,6 +1,7 @@
 
 # coding: utf-8
 import classifier
+import datasetExtractor
 
 
 import asyncio as aio
@@ -62,13 +63,15 @@ class SarcasmUser(telepot.aio.helper.ChatHandler):
         
         if 'text' in msg:
             if msg['text'] == '/help':
-                await self.sender.sendMessage("Send a message. If it starts with a vocal (a,e,i,o,u) it will show an emoji, else it will show a clown emoji")
+                await self.sender.sendMessage("Send a message. If i think it's sarcastic i will send a clown emoji, else i will show an OK emoji")
                 return
             
             message = msg['text']
             print(message)
             
-            prediction = predictor.predict([message])[0]
+            trans_dict = datasetExtractor.convertToLTEC(message)
+            trans_mess = classifier.transformData(predictor, trans_dict)
+            prediction = predictor["logit"].predict(trans_mess)[0]
 
 
             if prediction:
@@ -90,25 +93,20 @@ class SarcasmUser(telepot.aio.helper.ChatHandler):
 if __name__ == '__main__':
 
 
+    path1 = "dataset\\model\\Lemmatized_tokenized_emote_counted_model_2.pkl"
+    path2 = "data\\lemmatized_tokenized_emote_counted.pkl"
+
     try:
-        Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-        path = askopenfilename()
-        predictor = classifier.loadModel(path)
+        # best performing model in the tests
+        predictor = classifier.loadModel(path1)
 
     except IOError:
-        
-        Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-        path = askopenfilename()
+        df = classifier.loadModel(path2)
+        x_train, x_test, y_train, y_test = train_test_split(df[df.columns[~df.columns.isin(['subreddit','author','label'])]], df['label'], random_state=10)
 
-        df = classifier.readDf(path)
-        x_train, x_test, y_train, y_test = train_test_split(df['comment'], df['label'], random_state=10)
-
-        predictor = classifier.modelFitting(x_train, x_test, y_train, y_test)
+        predictor = classifier.modelFitting(x_train, y_train)
         
-        Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-        path = askdirectory()
-        name = input("Name your file to be saved:\n")
-        saveModel(path,name,predictor)    
+        saveModel(path1,predictor)    
 
     print("Bot started") 
     # Se crea un bot i inicia

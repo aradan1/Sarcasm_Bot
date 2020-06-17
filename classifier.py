@@ -45,7 +45,8 @@ def dfinformation(df):
 
 
 '''
-	Creates a pipeline with a vectorizer and Log.Regression and makes a 'fit' with the train sets
+	Creats the preprocessing tools and regression that are needed to generate a prediction and transform
+	the future data, and fits them to the fed data.
 
 	x_train:= train question
 	y_train:= train response
@@ -76,11 +77,11 @@ def modelFitting(x_train, y_train):
 	model_dict["tf_idf"] = tf_idf
 
 	# Data 2 = hasEmotes and numEmotes
-	numeric = [i for i in x_train.columns if i in ["numEmotes","hasEmotes"]]
+	numeric = [i for i in x_train if i in ["numEmotes","hasEmotes"]]
 	data+=[x_train[i].values[np.newaxis].T for i in numeric]
 
 	# Data 3 = Emote labels
-	if "emotes" in x_train.columns:
+	if "emotes" in x_train:
 		with open('faces.txt', 'r', encoding="utf-8") as f:
 			matches = [i.replace('\n', '').replace('\r','') for i in f.readlines()]
 		mlb = MultiLabelBinarizer(classes=matches)
@@ -109,10 +110,10 @@ def transformData(predictor, data):
 
 	result.append(predictor["tf_idf"].transform(data["comment"]))
 
-	numeric = [i for i in data.columns if i in ["numEmotes","hasEmotes"]]
+	numeric = [i for i in data if i in ["numEmotes","hasEmotes"]]
 	result += [data[i].values[np.newaxis].T for i in numeric]
 
-	if "emotes" in data.columns:
+	if "emotes" in data:
 		result.append(predictor["mlb"].transform(data['emotes']))
 
 	return hstack(result)
@@ -139,7 +140,7 @@ def modelInformation(prediction, y_test, plotSize = (4,4)):
 	plt.show()
 
 '''
-	Saves data in file
+	Saves data in pickle file
 
 	path:= Path to the file in which we want data to be stored
 	data:= Data to be stored
@@ -151,7 +152,7 @@ def saveModel(path, data):
 		dump(data, f)
 
 '''
-	Loads data from file
+	Loads data from pickle file
 
 	path:= Path from which we want to recover data
 '''
@@ -189,7 +190,7 @@ if __name__ == '__main__':
 		predictor = modelFitting(x_train, y_train)
 
 		#TO SAVE THE MODEL
-		saveModel(default_model_path+name+"_model_2",predictor)
+		#saveModel(default_model_path+name+"_model_2",predictor)
 
 		# Check accuracy scores
 		trans_x_test = transformData(predictor, x_test)
