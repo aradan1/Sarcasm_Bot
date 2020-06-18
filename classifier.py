@@ -2,8 +2,7 @@ import time
 
 import pandas as pd
 import numpy as np
-from pickle import dump, load # to save model so we dont waste 2-3 mins every time we restart
-from os.path import join
+from pickle import dump, load
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -16,8 +15,6 @@ from scipy.sparse import hstack
 # heatmap plots
 import seaborn as sn
 import matplotlib.pyplot as plt
-import eli5
-
 
 
 '''
@@ -36,12 +33,6 @@ def dfinformation(df):
 	print("\nDistribution of labeled samples:")
 	print(df['label'].value_counts())
 
-
-	print("\nHow labeled themes (subreddits) are:")
-	# this seemed usefull since subreddits appeal to topics and in the future information like this could be usefull
-	sub_df = df.groupby('subreddit')['label'].agg([np.size, np.mean, np.sum])
-	print(sub_df[sub_df['size'] > 1000].sort_values(by='mean', ascending=False).head(10))
-	# print(sub_df.sort_values(by='sum', ascending=False).head(10))
 
 
 '''

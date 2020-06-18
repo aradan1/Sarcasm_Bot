@@ -1,8 +1,5 @@
-
-# coding: utf-8
 import classifier
 import datasetExtractor
-
 
 import asyncio as aio
 import telepot

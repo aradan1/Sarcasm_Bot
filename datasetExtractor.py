@@ -11,23 +11,13 @@ import re
 
 import classifier
 
-#DetectorFactory.seed = 0
+DetectorFactory.seed = 0
 nlp = spacy.load('es_core_news_sm')
 
 url = "https://api.pushshift.io/reddit/comment/search?limit=1000&sort=desc&{}={}&before="
 default_backup_path = ""
 default_dataset_path = ""
 
-
-
-'''
-	Save pandas.DataFrame as csv file
-
-	dataframe:= DataFrame to be saved
-	filename:= Path wanted for the csv file 
-'''
-def saveDFToCSV(dataframe, filename):
-	dataframe.to_csv(filename, index=False, encoding='utf-8')
 
 
 ''' 
@@ -39,6 +29,7 @@ def saveDFToCSV(dataframe, filename):
 	tag:= String to look for in the comments("" will result in all comments matched).
 	tagged:= Return only comments that: 'True' = contain the tag, 'False' = don't contain the tag.
 	limit:= Number of comments wanted to check (if 'None' check all posible comments, if negative none will be checked)
+	language:= language that the comment will be checked on if we are getting them from users (defaults to spanish)
 	quantity:= Max number of matches expected to save (if negative this condition will be ignored) 
 '''
 def downloadFromUrl(pattern, target, tag, tagged, limit=None, language="es" ,quantity=-1):
