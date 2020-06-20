@@ -26,8 +26,8 @@ default_dataset_path = ""
 
 	pattern:= Field with which will search comments (endpoint from the api. ex: subreddit, author).
 	target:= Value to search 'pattern' for.
-	tag:= String to look for in the comments("" will result in all comments matched).
-	tagged:= Return only comments that: 'True' = contain the tag, 'False' = don't contain the tag.
+	tag:= String to look for in the comments("" will result in all comments matched but "" returned).
+	tagged:= Return only comments that: 'True' = contain the tag, 'False' = doesn't contain the tag.
 	limit:= Number of comments wanted to check (if 'None' check all posible comments, if negative none will be checked)
 	language:= language that the comment will be checked on if we are getting them from users (defaults to spanish)
 	quantity:= Max number of matches expected to save (if negative this condition will be ignored) 
